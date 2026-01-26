@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>YT Subtitle Downloader</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: "Segoe UI", system-ui, sans-serif;
+      }
+      body {
+        margin: 0;
+        padding: 32px;
+        background: #f5f5f7;
+        color: #1b1b1f;
+      }
+      main {
+        max-width: 900px;
+        margin: 0 auto;
+        background: #ffffff;
+        padding: 24px;
+        border-radius: 16px;
+        box-shadow: 0 20px 45px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        margin-top: 0;
+      }
+      .controls {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+      .controls input {
+        flex: 1 1 240px;
+        padding: 12px;
+        border-radius: 8px;
+        border: 1px solid #c9c9d1;
+        font-size: 1rem;
+      }
+      button {
+        padding: 12px 18px;
+        border-radius: 8px;
+        border: none;
+        background: #2f5bea;
+        color: #fff;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .result {
+        display: grid;
+        gap: 16px;
+        margin-top: 20px;
+      }
+      .panel {
+        border: 1px solid #e0e0e6;
+        border-radius: 10px;
+        padding: 16px;
+        background: #fafafa;
+      }
+      .panel h2 {
+        margin-top: 0;
+        font-size: 1.1rem;
+      }
+      pre {
+        white-space: pre-wrap;
+        word-break: break-word;
+        font-family: "Courier New", monospace;
+        font-size: 0.9rem;
+      }
+      #logArea {
+        max-height: 200px;
+        overflow-y: auto;
+      }
+      .status {
+        margin-top: 12px;
+        font-weight: 600;
+      }
+      .copy-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>YouTube Subtitle Downloader</h1>
+      <p>
+        Enter a YouTube watch ID (the value after <code>v=</code>) to download
+        subtitles in the language spoken in the video.
+      </p>
+      <div class="controls">
+        <input
+          id="videoId"
+          type="text"
+          placeholder="e.g. dQw4w9WgXcQ"
+          autocomplete="off"
+        />
+        <button id="downloadBtn">Download Subtitles</button>
+      </div>
+      <div class="status" id="status">Status: Idle</div>
+
+      <section class="result">
+        <div class="panel">
+          <div class="copy-row">
+            <h2>Subtitle Preview</h2>
+            <button id="copyBtn" disabled>Copy Full Subtitle</button>
+          </div>
+          <p><strong>Detected language:</strong> <span id="language">-</span></p>
+          <h3>Beginning</h3>
+          <pre id="subtitleStart">-</pre>
+          <h3>End</h3>
+          <pre id="subtitleEnd">-</pre>
+        </div>
+        <div class="panel">
+          <h2>Backend Log</h2>
+          <pre id="logArea"></pre>
+        </div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
