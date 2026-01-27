@@ -55,7 +55,7 @@ async def run_yt_dlp_subtitles(url: str, language: str, use_auto: bool, out_dir:
         "--sub-lang",
         language,
         "--sub-format",
-        "vtt",
+        "json3",
         "-o",
         str(out_dir / "subtitle.%(ext)s"),
         url,
@@ -75,7 +75,7 @@ async def run_yt_dlp_subtitles(url: str, language: str, use_auto: bool, out_dir:
         error = stderr.decode("utf-8", errors="ignore")
         raise RuntimeError(error or "yt-dlp subtitle download failed")
 
-    for file in out_dir.glob("subtitle*.vtt"):
+    for file in out_dir.glob("subtitle*.json3"):
         return file
     debug = stdout.decode("utf-8", errors="ignore")
     raise FileNotFoundError(f"Subtitle file not found. Output: {debug}")
@@ -107,6 +107,25 @@ def parse_vtt_text(path: Path) -> str:
         cleaned.append(line)
     text = "\n".join(cleaned).strip()
     return "\n".join([segment.strip() for segment in text.split("\n\n") if segment.strip()])
+
+
+def parse_json3_text(path: Path) -> str:
+    payload = json.loads(path.read_text(encoding="utf-8", errors="ignore"))
+    events = payload.get("events", [])
+    lines: list[str] = []
+    for event in events:
+        segments = event.get("segs") or []
+        text = "".join(segment.get("utf8", "") for segment in segments).strip()
+        if not text:
+            continue
+        lines.append(text.replace("\n", " ").strip())
+    return "\n".join(lines).strip()
+
+
+def parse_subtitle_text(path: Path) -> str:
+    if path.suffix == ".json3":
+        return parse_json3_text(path)
+    return parse_vtt_text(path)
 
 
 def summarize_text(text: str, size: int = 400) -> Dict[str, str]:
@@ -162,8 +181,15 @@ async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
             f"Selected language '{language}' ({'auto' if use_auto else 'manual'} captions)."
         )
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            out_dir = Path(temp_dir)
+        keep_temp = bool(request.app.get("keep_temp"))
+        temp_dir_obj: Optional[tempfile.TemporaryDirectory[str]] = None
+        if keep_temp:
+            out_dir = Path(tempfile.mkdtemp(prefix="yt_subtitle_"))
+            await send_log(f"Keeping temp files in {out_dir}.")
+        else:
+            temp_dir_obj = tempfile.TemporaryDirectory()
+            out_dir = Path(temp_dir_obj.name)
+        try:
             await send_log("Downloading subtitles with yt-dlp...")
             try:
                 subtitle_path = await run_yt_dlp_subtitles(url, language, use_auto, out_dir)
@@ -172,7 +198,10 @@ async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
                 continue
 
             await send_log("Parsing subtitle text...")
-            text = parse_vtt_text(subtitle_path)
+            text = parse_subtitle_text(subtitle_path)
+        finally:
+            if temp_dir_obj is not None:
+                temp_dir_obj.cleanup()
 
         if not text:
             await ws.send_json({"type": "error", "message": "Subtitle text was empty."})
@@ -203,8 +232,14 @@ def frontend_file_response(frontend_dir: Path, file_path: Path) -> web.FileRespo
     return web.FileResponse(resolved)
 
 
-def create_app(*, serve_frontend: bool = False, frontend_dir: Path = FRONTEND_DIR) -> web.Application:
+def create_app(
+    *,
+    serve_frontend: bool = False,
+    frontend_dir: Path = FRONTEND_DIR,
+    keep_temp: bool = False,
+) -> web.Application:
     app = web.Application()
+    app["keep_temp"] = keep_temp
     app.router.add_get("/ws", websocket_handler)
     if serve_frontend:
         app["frontend_dir"] = frontend_dir
@@ -238,12 +273,21 @@ def parse_args() -> argparse.Namespace:
         default=FRONTEND_DIR,
         help="Directory containing frontend assets (default: ./docs)",
     )
+    parser.add_argument(
+        "--keep-temp",
+        action="store_true",
+        help="Keep intermediate temp files on disk instead of cleaning them up",
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
     web.run_app(
-        create_app(serve_frontend=args.serve_frontend, frontend_dir=args.frontend_dir),
+        create_app(
+            serve_frontend=args.serve_frontend,
+            frontend_dir=args.frontend_dir,
+            keep_temp=args.keep_temp,
+        ),
         port=args.port,
     )
