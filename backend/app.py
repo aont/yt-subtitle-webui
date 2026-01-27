@@ -1,0 +1,200 @@
+import asyncio
+import json
+import os
+import tempfile
+from pathlib import Path
+from typing import Any, Dict, Optional
+
+from aiohttp import web
+
+
+def build_watch_url(watch_id: str) -> str:
+    if watch_id.startswith("http://") or watch_id.startswith("https://"):
+        return watch_id
+    return f"https://www.youtube.com/watch?v={watch_id}"
+
+
+def pick_subtitle_language(info: Dict[str, Any]) -> tuple[Optional[str], bool]:
+    language = info.get("language")
+    subtitles = info.get("subtitles") or {}
+    auto_captions = info.get("automatic_captions") or {}
+    if language:
+        if language in subtitles:
+            return language, False
+        if language in auto_captions:
+            return language, True
+    if subtitles:
+        return sorted(subtitles.keys())[0], False
+    if auto_captions:
+        return sorted(auto_captions.keys())[0], True
+    return None, False
+
+
+async def run_yt_dlp_json(url: str) -> Dict[str, Any]:
+    process = await asyncio.create_subprocess_exec(
+        "yt-dlp",
+        "--dump-single-json",
+        "--no-warnings",
+        url,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await process.communicate()
+    if process.returncode != 0:
+        raise RuntimeError(stderr.decode("utf-8", errors="ignore") or "yt-dlp failed")
+    return json.loads(stdout.decode("utf-8"))
+
+
+async def run_yt_dlp_subtitles(url: str, language: str, use_auto: bool, out_dir: Path) -> Path:
+    args = [
+        "yt-dlp",
+        "--skip-download",
+        "--sub-lang",
+        language,
+        "--sub-format",
+        "vtt",
+        "-o",
+        str(out_dir / "subtitle.%(ext)s"),
+        url,
+    ]
+    if use_auto:
+        args.insert(2, "--write-auto-subs")
+    else:
+        args.insert(2, "--write-sub")
+
+    process = await asyncio.create_subprocess_exec(
+        *args,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await process.communicate()
+    if process.returncode != 0:
+        error = stderr.decode("utf-8", errors="ignore")
+        raise RuntimeError(error or "yt-dlp subtitle download failed")
+
+    for file in out_dir.glob("subtitle*.vtt"):
+        return file
+    debug = stdout.decode("utf-8", errors="ignore")
+    raise FileNotFoundError(f"Subtitle file not found. Output: {debug}")
+
+
+def parse_vtt_text(path: Path) -> str:
+    lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
+    cleaned: list[str] = []
+    skip_block = False
+    for raw in lines:
+        line = raw.strip("\ufeff").strip()
+        if not line:
+            if cleaned and cleaned[-1] != "":
+                cleaned.append("")
+            continue
+        if line.startswith("WEBVTT"):
+            continue
+        if line.startswith("NOTE") or line.startswith("STYLE"):
+            skip_block = True
+            continue
+        if skip_block:
+            if line == "":
+                skip_block = False
+            continue
+        if "-->" in line:
+            continue
+        if line.isdigit():
+            continue
+        cleaned.append(line)
+    text = "\n".join(cleaned).strip()
+    return "\n".join([segment.strip() for segment in text.split("\n\n") if segment.strip()])
+
+
+def summarize_text(text: str, size: int = 400) -> Dict[str, str]:
+    if len(text) <= size * 2:
+        return {"beginning": text, "ending": text}
+    return {
+        "beginning": text[:size].rstrip(),
+        "ending": text[-size:].lstrip(),
+    }
+
+
+async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
+    ws = web.WebSocketResponse()
+    await ws.prepare(request)
+
+    async def send_log(message: str) -> None:
+        await ws.send_json({"type": "log", "message": message})
+
+    await send_log("WebSocket connected. Ready to download subtitles.")
+
+    async for msg in ws:
+        if msg.type != web.WSMsgType.TEXT:
+            continue
+        try:
+            payload = json.loads(msg.data)
+        except json.JSONDecodeError:
+            await send_log("Received invalid JSON payload.")
+            continue
+
+        if payload.get("action") != "download":
+            await send_log("Unknown action received.")
+            continue
+
+        watch_id = payload.get("watch_id", "").strip()
+        if not watch_id:
+            await ws.send_json({"type": "error", "message": "Watch ID is required."})
+            continue
+
+        url = build_watch_url(watch_id)
+        await send_log(f"Fetching metadata for {url}...")
+        try:
+            info = await run_yt_dlp_json(url)
+        except Exception as exc:  # noqa: BLE001
+            await ws.send_json({"type": "error", "message": str(exc)})
+            continue
+
+        language, use_auto = pick_subtitle_language(info)
+        if not language:
+            await ws.send_json({"type": "error", "message": "No subtitles available for this video."})
+            continue
+
+        await send_log(
+            f"Selected language '{language}' ({'auto' if use_auto else 'manual'} captions)."
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            out_dir = Path(temp_dir)
+            await send_log("Downloading subtitles with yt-dlp...")
+            try:
+                subtitle_path = await run_yt_dlp_subtitles(url, language, use_auto, out_dir)
+            except Exception as exc:  # noqa: BLE001
+                await ws.send_json({"type": "error", "message": str(exc)})
+                continue
+
+            await send_log("Parsing subtitle text...")
+            text = parse_vtt_text(subtitle_path)
+
+        if not text:
+            await ws.send_json({"type": "error", "message": "Subtitle text was empty."})
+            continue
+
+        summary = summarize_text(text)
+        await send_log("Subtitle processing completed.")
+        await ws.send_json(
+            {
+                "type": "result",
+                "language": language,
+                "summary": summary,
+                "text": text,
+            }
+        )
+
+    return ws
+
+
+def create_app() -> web.Application:
+    app = web.Application()
+    app.router.add_get("/ws", websocket_handler)
+    return app
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", "8080"))
+    web.run_app(create_app(), port=port)
