@@ -18,6 +18,16 @@
 
       <section class="card">
         <div class="field">
+          <label for="backendAddress">Backend address</label>
+          <input
+            id="backendAddress"
+            type="text"
+            placeholder="ws://localhost:8080 or localhost:8080"
+            autocomplete="off"
+          />
+          <span class="hint">Supports ws(s), http(s), or host:port formats.</span>
+        </div>
+        <div class="field">
           <label for="watchId">YouTube Watch ID or URL</label>
           <input id="watchId" type="text" placeholder="dQw4w9WgXcQ" autocomplete="off" />
         </div>

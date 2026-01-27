@@ -1,4 +1,5 @@
 const statusEl = document.getElementById("status");
+const backendAddressInput = document.getElementById("backendAddress");
 const watchIdInput = document.getElementById("watchId");
 const downloadButton = document.getElementById("downloadButton");
 const copyButton = document.getElementById("copyButton");
@@ -24,13 +25,46 @@ function setStatus(message) {
   appendLog(`Frontend: ${message}`);
 }
 
+function defaultSocketUrl() {
+  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+  return `${protocol}://${window.location.hostname}:${window.location.port || 8080}/ws`;
+}
+
+function normalizeSocketUrl(value) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return defaultSocketUrl();
+  }
+  try {
+    let url;
+    if (/^wss?:\/\//i.test(trimmed)) {
+      url = new URL(trimmed);
+    } else if (/^https?:\/\//i.test(trimmed)) {
+      url = new URL(trimmed);
+      url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+    } else {
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      url = new URL(`${protocol}//${trimmed}`);
+    }
+
+    if (!url.pathname || url.pathname === "/") {
+      url.pathname = "/ws";
+    } else if (!url.pathname.endsWith("/ws")) {
+      url.pathname = `${url.pathname.replace(/\/+$/, "")}/ws`;
+    }
+    return url.toString();
+  } catch (error) {
+    appendLog("Frontend: Invalid backend address provided, using default.", "warn");
+    return defaultSocketUrl();
+  }
+}
+
 function connectSocket() {
   if (socket && socket.readyState === WebSocket.OPEN) {
     return socket;
   }
 
-  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-  const socketUrl = `${protocol}://${window.location.hostname}:${window.location.port || 8080}/ws`;
+  const socketUrl = normalizeSocketUrl(backendAddressInput?.value || "");
   socket = new WebSocket(socketUrl);
 
   socket.addEventListener("open", () => {
@@ -160,5 +194,20 @@ downloadButton.addEventListener("click", () => {
 });
 
 copyButton.addEventListener("click", () => copyToClipboard(latestText));
+
+if (backendAddressInput) {
+  const saved = window.localStorage.getItem("backendAddress");
+  if (saved) {
+    backendAddressInput.value = saved;
+  }
+  backendAddressInput.addEventListener("change", () => {
+    const value = backendAddressInput.value.trim();
+    if (value) {
+      window.localStorage.setItem("backendAddress", value);
+    } else {
+      window.localStorage.removeItem("backendAddress");
+    }
+  });
+}
 
 setStatus("Idle");

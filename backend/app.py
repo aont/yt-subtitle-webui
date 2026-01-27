@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import json
 import os
@@ -195,6 +196,17 @@ def create_app() -> web.Application:
     return app
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="YT Subtitle Downloader backend")
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=int(os.environ.get("PORT", "8080")),
+        help="Port to bind the web server (default: 8080 or PORT env var)",
+    )
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", "8080"))
-    web.run_app(create_app(), port=port)
+    args = parse_args()
+    web.run_app(create_app(), port=args.port)
