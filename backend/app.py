@@ -33,12 +33,18 @@ def pick_subtitle_language(info: Dict[str, Any]) -> tuple[Optional[str], bool]:
     return None, False
 
 
-async def run_yt_dlp_json(url: str) -> Dict[str, Any]:
-    process = await asyncio.create_subprocess_exec(
+async def run_yt_dlp_json(url: str, cookies_path: Optional[Path]) -> Dict[str, Any]:
+    args = [
         "yt-dlp",
         "--dump-single-json",
         "--no-warnings",
-        url,
+    ]
+    if cookies_path:
+        args.extend(["--cookies", str(cookies_path)])
+    args.append(url)
+
+    process = await asyncio.create_subprocess_exec(
+        *args,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
@@ -48,7 +54,13 @@ async def run_yt_dlp_json(url: str) -> Dict[str, Any]:
     return json.loads(stdout.decode("utf-8"))
 
 
-async def run_yt_dlp_subtitles(url: str, language: str, use_auto: bool, out_dir: Path) -> Path:
+async def run_yt_dlp_subtitles(
+    url: str,
+    language: str,
+    use_auto: bool,
+    out_dir: Path,
+    cookies_path: Optional[Path],
+) -> Path:
     args = [
         "yt-dlp",
         "--skip-download",
@@ -58,8 +70,10 @@ async def run_yt_dlp_subtitles(url: str, language: str, use_auto: bool, out_dir:
         "json3",
         "-o",
         str(out_dir / "subtitle.%(ext)s"),
-        url,
     ]
+    if cookies_path:
+        args.extend(["--cookies", str(cookies_path)])
+    args.append(url)
     if use_auto:
         args.insert(2, "--write-auto-subs")
     else:
@@ -171,8 +185,9 @@ async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
 
         url = build_watch_url(watch_id)
         await send_log(f"Fetching metadata for {url}...")
+        cookies_path = request.app.get("cookies_path")
         try:
-            info = await run_yt_dlp_json(url)
+            info = await run_yt_dlp_json(url, cookies_path)
         except Exception as exc:  # noqa: BLE001
             await ws.send_json({"type": "error", "message": str(exc)})
             continue
@@ -197,7 +212,13 @@ async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
         try:
             await send_log("Downloading subtitles with yt-dlp...")
             try:
-                subtitle_path = await run_yt_dlp_subtitles(url, language, use_auto, out_dir)
+                subtitle_path = await run_yt_dlp_subtitles(
+                    url,
+                    language,
+                    use_auto,
+                    out_dir,
+                    cookies_path,
+                )
             except Exception as exc:  # noqa: BLE001
                 await ws.send_json({"type": "error", "message": str(exc)})
                 continue
@@ -242,9 +263,11 @@ def create_app(
     serve_frontend: bool = False,
     frontend_dir: Path = FRONTEND_DIR,
     keep_temp: bool = False,
+    cookies_path: Optional[Path] = None,
 ) -> web.Application:
     app = web.Application()
     app["keep_temp"] = keep_temp
+    app["cookies_path"] = cookies_path
     app.router.add_get("/ws", websocket_handler)
     if serve_frontend:
         app["frontend_dir"] = frontend_dir
@@ -283,6 +306,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Keep intermediate temp files on disk instead of cleaning them up",
     )
+    parser.add_argument(
+        "--cookies",
+        type=Path,
+        help="Path to a cookies.txt file to pass to yt-dlp",
+    )
     return parser.parse_args()
 
 
@@ -293,6 +321,7 @@ if __name__ == "__main__":
             serve_frontend=args.serve_frontend,
             frontend_dir=args.frontend_dir,
             keep_temp=args.keep_temp,
+            cookies_path=args.cookies,
         ),
         port=args.port,
     )
