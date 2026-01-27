@@ -88,12 +88,13 @@ button:disabled {
   gap: 24px;
 }
 
-.summary-block {
-  margin-bottom: 16px;
-}
-
-.summary-block:last-child {
-  margin-bottom: 0;
+.card-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
 }
 
 pre,

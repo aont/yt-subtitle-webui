@@ -33,25 +33,16 @@
         </div>
         <div class="actions">
           <button id="downloadButton" type="button">Download Subtitles</button>
-          <button id="copyButton" type="button" disabled>Copy All</button>
         </div>
         <p class="status" id="status">Status: Idle</p>
       </section>
 
       <section class="grid">
         <article class="card">
-          <h2>Summary</h2>
-          <div class="summary-block">
-            <h3>Beginning</h3>
-            <pre id="summaryBeginning">Waiting for subtitles...</pre>
+          <div class="card-title">
+            <h2>Full Subtitle Text</h2>
+            <button id="copyButton" type="button" disabled>Copy All</button>
           </div>
-          <div class="summary-block">
-            <h3>Ending</h3>
-            <pre id="summaryEnding">Waiting for subtitles...</pre>
-          </div>
-        </article>
-        <article class="card">
-          <h2>Full Subtitle Text</h2>
           <textarea id="fullText" readonly rows="16" placeholder="Subtitles will appear here..."></textarea>
         </article>
       </section>

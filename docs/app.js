@@ -3,8 +3,6 @@ const backendAddressInput = document.getElementById("backendAddress");
 const watchIdInput = document.getElementById("watchId");
 const downloadButton = document.getElementById("downloadButton");
 const copyButton = document.getElementById("copyButton");
-const summaryBeginning = document.getElementById("summaryBeginning");
-const summaryEnding = document.getElementById("summaryEnding");
 const fullText = document.getElementById("fullText");
 const logEl = document.getElementById("log");
 
@@ -94,8 +92,6 @@ function connectSocket() {
 
     if (data.type === "result") {
       latestText = data.text || "";
-      summaryBeginning.textContent = data.summary?.beginning || "";
-      summaryEnding.textContent = data.summary?.ending || "";
       fullText.value = latestText;
       copyButton.disabled = !latestText;
       setStatus(`Completed (language: ${data.language || "unknown"})`);
@@ -159,8 +155,6 @@ downloadButton.addEventListener("click", () => {
     return;
   }
 
-  summaryBeginning.textContent = "Downloading...";
-  summaryEnding.textContent = "Downloading...";
   fullText.value = "";
   latestText = "";
   copyButton.disabled = true;
