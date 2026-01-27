@@ -37,8 +37,18 @@
         <p class="status" id="status">Status: Idle</p>
       </section>
 
-      <section class="grid">
-        <article class="card">
+        <section class="card">
+          <div class="card-title">
+            <h2>Full Subtitle Text</h2>
+            <div class="button-group">
+              <button id="copyButton" type="button" disabled>Copy All</button>
+              <button id="copyPromptButton" type="button" disabled>Copy Prompt</button>
+            </div>
+          </div>
+          <textarea id="fullText" readonly rows="16" placeholder="Subtitles will appear here..."></textarea>
+        </section>
+
+        <section class="card">
           <div class="card-title">
             <h2>Prompt Template</h2>
           </div>
@@ -52,19 +62,8 @@
             ></textarea>
             <span class="hint">Stored locally in your browser for future sessions.</span>
           </div>
-        </article>
-        <article class="card">
-          <div class="card-title">
-            <h2>Full Subtitle Text</h2>
-            <div class="button-group">
-              <button id="copyButton" type="button" disabled>Copy All</button>
-              <button id="copyPromptButton" type="button" disabled>Copy Prompt</button>
-            </div>
-          </div>
-          <textarea id="fullText" readonly rows="16" placeholder="Subtitles will appear here..."></textarea>
-        </article>
-      </section>
-
+        </section>
+	
       <section class="card">
         <h2>Processing Log</h2>
         <div class="log" id="log"></div>
