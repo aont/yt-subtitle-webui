@@ -28,6 +28,13 @@ function defaultSocketUrl() {
   return `${protocol}://${window.location.hostname}:${window.location.port || 8080}/ws`;
 }
 
+function defaultBackendAddress() {
+  if (window.location.origin && window.location.origin !== "null") {
+    return window.location.origin;
+  }
+  return `${window.location.protocol}//${window.location.hostname}:${window.location.port || 8080}`;
+}
+
 function normalizeSocketUrl(value) {
   const trimmed = value.trim();
   if (!trimmed) {
@@ -193,6 +200,8 @@ if (backendAddressInput) {
   const saved = window.localStorage.getItem("backendAddress");
   if (saved) {
     backendAddressInput.value = saved;
+  } else {
+    backendAddressInput.value = defaultBackendAddress();
   }
   backendAddressInput.addEventListener("change", () => {
     const value = backendAddressInput.value.trim();
