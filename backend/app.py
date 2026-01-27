@@ -81,15 +81,20 @@ async def run_yt_dlp_subtitles(url: str, language: str, use_auto: bool, out_dir:
     raise FileNotFoundError(f"Subtitle file not found. Output: {debug}")
 
 
-def parse_vtt_text(path: Path) -> str:
+def is_cjk_language(language: Optional[str]) -> bool:
+    if not language:
+        return False
+    lowered = language.lower()
+    return lowered.startswith("ja") or lowered.startswith("ko") or lowered.startswith("zh")
+
+
+def parse_vtt_text(path: Path, joiner: str) -> str:
     lines = path.read_text(encoding="utf-8", errors="ignore").splitlines()
     cleaned: list[str] = []
     skip_block = False
     for raw in lines:
         line = raw.strip("\ufeff").strip()
         if not line:
-            if cleaned and cleaned[-1] != "":
-                cleaned.append("")
             continue
         if line.startswith("WEBVTT"):
             continue
@@ -105,11 +110,10 @@ def parse_vtt_text(path: Path) -> str:
         if line.isdigit():
             continue
         cleaned.append(line)
-    text = "\n".join(cleaned).strip()
-    return "\n".join([segment.strip() for segment in text.split("\n\n") if segment.strip()])
+    return joiner.join(segment.strip() for segment in cleaned if segment.strip()).strip()
 
 
-def parse_json3_text(path: Path) -> str:
+def parse_json3_text(path: Path, joiner: str) -> str:
     payload = json.loads(path.read_text(encoding="utf-8", errors="ignore"))
     events = payload.get("events", [])
     lines: list[str] = []
@@ -118,14 +122,15 @@ def parse_json3_text(path: Path) -> str:
         text = "".join(segment.get("utf8", "") for segment in segments).strip()
         if not text:
             continue
-        lines.append(text.replace("\n", " ").strip())
-    return "\n".join(lines).strip()
+        lines.append(text.replace("\n", joiner).strip())
+    return joiner.join(lines).strip()
 
 
-def parse_subtitle_text(path: Path) -> str:
+def parse_subtitle_text(path: Path, language: Optional[str]) -> str:
+    joiner = "" if is_cjk_language(language) else " "
     if path.suffix == ".json3":
-        return parse_json3_text(path)
-    return parse_vtt_text(path)
+        return parse_json3_text(path, joiner)
+    return parse_vtt_text(path, joiner)
 
 
 def summarize_text(text: str, size: int = 400) -> Dict[str, str]:
@@ -198,7 +203,7 @@ async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
                 continue
 
             await send_log("Parsing subtitle text...")
-            text = parse_subtitle_text(subtitle_path)
+            text = parse_subtitle_text(subtitle_path, language)
         finally:
             if temp_dir_obj is not None:
                 temp_dir_obj.cleanup()
