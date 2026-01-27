@@ -61,6 +61,12 @@ body {
   gap: 12px;
 }
 
+.button-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 button {
   padding: 10px 16px;
   border-radius: 999px;
@@ -112,6 +118,10 @@ textarea {
   width: 100%;
   resize: vertical;
   min-height: 220px;
+}
+
+.template-input {
+  min-height: 140px;
 }
 
 .log {

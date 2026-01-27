@@ -3,11 +3,15 @@ const backendAddressInput = document.getElementById("backendAddress");
 const watchIdInput = document.getElementById("watchId");
 const downloadButton = document.getElementById("downloadButton");
 const copyButton = document.getElementById("copyButton");
+const copyPromptButton = document.getElementById("copyPromptButton");
+const promptTemplateInput = document.getElementById("promptTemplate");
 const fullText = document.getElementById("fullText");
 const logEl = document.getElementById("log");
 
 let socket;
 let latestText = "";
+const defaultPromptTemplate =
+  "Turn the following audio transcription into a blog post. \n---- \n\n";
 
 function appendLog(message, level = "info") {
   const entry = document.createElement("div");
@@ -101,6 +105,9 @@ function connectSocket() {
       latestText = data.text || "";
       fullText.value = latestText;
       copyButton.disabled = !latestText;
+      if (copyPromptButton) {
+        copyPromptButton.disabled = !latestText;
+      }
       setStatus(`Completed (language: ${data.language || "unknown"})`);
       downloadButton.disabled = false;
       appendLog("Frontend: Results loaded into the UI.");
@@ -126,13 +133,13 @@ function sanitizeWatchId(value) {
   return trimmed;
 }
 
-async function copyToClipboard(text) {
+async function copyToClipboard(text, label = "subtitles") {
   if (!text) {
     return;
   }
   try {
     await navigator.clipboard.writeText(text);
-    appendLog("Frontend: Copied subtitles using Clipboard API.");
+    appendLog(`Frontend: Copied ${label} using Clipboard API.`);
     setStatus("Copied to clipboard");
     return;
   } catch (error) {
@@ -145,10 +152,10 @@ async function copyToClipboard(text) {
   temp.select();
   try {
     document.execCommand("copy");
-    appendLog("Frontend: Copied subtitles using execCommand.");
+    appendLog(`Frontend: Copied ${label} using execCommand.`);
     setStatus("Copied to clipboard");
   } catch (error) {
-    appendLog("Frontend: Failed to copy subtitles.", "error");
+    appendLog(`Frontend: Failed to copy ${label}.`, "error");
     setStatus("Copy failed");
   } finally {
     document.body.removeChild(temp);
@@ -165,6 +172,9 @@ downloadButton.addEventListener("click", () => {
   fullText.value = "";
   latestText = "";
   copyButton.disabled = true;
+  if (copyPromptButton) {
+    copyPromptButton.disabled = true;
+  }
   downloadButton.disabled = true;
 
   setStatus("Requesting subtitles...");
@@ -194,7 +204,14 @@ downloadButton.addEventListener("click", () => {
   }
 });
 
-copyButton.addEventListener("click", () => copyToClipboard(latestText));
+copyButton.addEventListener("click", () => copyToClipboard(latestText, "subtitles"));
+if (copyPromptButton) {
+  copyPromptButton.addEventListener("click", () => {
+    const template = promptTemplateInput?.value ?? defaultPromptTemplate;
+    const combined = `${template}${latestText}`;
+    copyToClipboard(combined, "prompt");
+  });
+}
 
 if (backendAddressInput) {
   const saved = window.localStorage.getItem("backendAddress");
@@ -210,6 +227,19 @@ if (backendAddressInput) {
     } else {
       window.localStorage.removeItem("backendAddress");
     }
+  });
+}
+
+if (promptTemplateInput) {
+  const savedTemplate = window.localStorage.getItem("promptTemplate");
+  if (savedTemplate) {
+    promptTemplateInput.value = savedTemplate;
+  } else {
+    promptTemplateInput.value = defaultPromptTemplate;
+    window.localStorage.setItem("promptTemplate", defaultPromptTemplate);
+  }
+  promptTemplateInput.addEventListener("input", () => {
+    window.localStorage.setItem("promptTemplate", promptTemplateInput.value);
   });
 }
 

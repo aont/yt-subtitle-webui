@@ -40,8 +40,26 @@
       <section class="grid">
         <article class="card">
           <div class="card-title">
+            <h2>Prompt Template</h2>
+          </div>
+          <div class="field">
+            <label for="promptTemplate">Template content</label>
+            <textarea
+              id="promptTemplate"
+              class="template-input"
+              rows="8"
+              placeholder="Enter the prompt template to prepend..."
+            ></textarea>
+            <span class="hint">Stored locally in your browser for future sessions.</span>
+          </div>
+        </article>
+        <article class="card">
+          <div class="card-title">
             <h2>Full Subtitle Text</h2>
-            <button id="copyButton" type="button" disabled>Copy All</button>
+            <div class="button-group">
+              <button id="copyButton" type="button" disabled>Copy All</button>
+              <button id="copyPromptButton" type="button" disabled>Copy Prompt</button>
+            </div>
           </div>
           <textarea id="fullText" readonly rows="16" placeholder="Subtitles will appear here..."></textarea>
         </article>
