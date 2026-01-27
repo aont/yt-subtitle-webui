@@ -8,6 +8,8 @@ from typing import Any, Dict, Optional
 
 from aiohttp import web
 
+FRONTEND_DIR = Path(__file__).resolve().parents[1] / "docs"
+
 
 def build_watch_url(watch_id: str) -> str:
     if watch_id.startswith("http://") or watch_id.startswith("https://"):
@@ -190,9 +192,30 @@ async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
     return ws
 
 
-def create_app() -> web.Application:
+def frontend_file_response(frontend_dir: Path, file_path: Path) -> web.FileResponse:
+    resolved = file_path.resolve()
+    try:
+        resolved.relative_to(frontend_dir.resolve())
+    except ValueError as exc:
+        raise web.HTTPNotFound() from exc
+    if not resolved.exists() or not resolved.is_file():
+        raise web.HTTPNotFound()
+    return web.FileResponse(resolved)
+
+
+def create_app(*, serve_frontend: bool = False, frontend_dir: Path = FRONTEND_DIR) -> web.Application:
     app = web.Application()
     app.router.add_get("/ws", websocket_handler)
+    if serve_frontend:
+        app["frontend_dir"] = frontend_dir
+
+        async def frontend_handler(request: web.Request) -> web.FileResponse:
+            raw_path = request.match_info.get("path", "")
+            target = raw_path or "index.html"
+            return frontend_file_response(frontend_dir, frontend_dir / target)
+
+        app.router.add_get("/", frontend_handler)
+        app.router.add_get("/{path:.*}", frontend_handler)
     return app
 
 
@@ -204,9 +227,23 @@ def parse_args() -> argparse.Namespace:
         default=int(os.environ.get("PORT", "8080")),
         help="Port to bind the web server (default: 8080 or PORT env var)",
     )
+    parser.add_argument(
+        "--serve-frontend",
+        action="store_true",
+        help="Serve the frontend static files from the backend server",
+    )
+    parser.add_argument(
+        "--frontend-dir",
+        type=Path,
+        default=FRONTEND_DIR,
+        help="Directory containing frontend assets (default: ./docs)",
+    )
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = parse_args()
-    web.run_app(create_app(), port=args.port)
+    web.run_app(
+        create_app(serve_frontend=args.serve_frontend, frontend_dir=args.frontend_dir),
+        port=args.port,
+    )
