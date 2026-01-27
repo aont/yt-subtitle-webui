@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>YT Subtitle Downloader</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="hero">
+        <h1>YT Subtitle Downloader</h1>
+        <p>
+          Fetch plain-text subtitles from YouTube with yt-dlp. Paste a YouTube watch ID or URL and
+          download the spoken-language captions.
+        </p>
+      </header>
+
+      <section class="card">
+        <div class="field">
+          <label for="backendAddress">Backend address</label>
+          <input
+            id="backendAddress"
+            type="text"
+            placeholder="ws://localhost:8080 or localhost:8080"
+            autocomplete="off"
+          />
+          <span class="hint">Supports ws(s), http(s), or host:port formats.</span>
+        </div>
+        <div class="field">
+          <label for="watchId">YouTube Watch ID or URL</label>
+          <input id="watchId" type="text" placeholder="dQw4w9WgXcQ" autocomplete="off" />
+        </div>
+        <div class="actions">
+          <button id="downloadButton" type="button">Download Subtitles</button>
+        </div>
+        <p class="status" id="status">Status: Idle</p>
+      </section>
+
+        <section class="card">
+          <div class="card-title">
+            <h2>Full Subtitle Text</h2>
+            <div class="button-group">
+              <button id="copyButton" type="button" disabled>Copy All</button>
+              <button id="copyPromptButton" type="button" disabled>Copy Prompt</button>
+            </div>
+          </div>
+          <textarea id="fullText" readonly rows="16" placeholder="Subtitles will appear here..."></textarea>
+        </section>
+
+        <section class="card">
+          <div class="card-title">
+            <h2>Prompt Template</h2>
+          </div>
+          <div class="field">
+            <label for="promptTemplate">Template content</label>
+            <textarea
+              id="promptTemplate"
+              class="template-input"
+              rows="8"
+              placeholder="Enter the prompt template to prepend..."
+            ></textarea>
+            <span class="hint">Stored locally in your browser for future sessions.</span>
+          </div>
+        </section>
+	
+      <section class="card">
+        <h2>Processing Log</h2>
+        <div class="log" id="log"></div>
+      </section>
+    </main>
+
+    <div
+      class="modal"
+      id="completionModal"
+      role="dialog"
+      aria-modal="true"
+      aria-hidden="true"
+      aria-labelledby="modalTitle"
+      aria-describedby="modalMessage"
+    >
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2 id="modalTitle">Download complete</h2>
+          <button class="modal-close" type="button" id="modalCloseButton" aria-label="Close dialog">
+            ×
+          </button>
+        </div>
+        <p id="modalMessage"></p>
+        <div class="modal-actions">
+          <button type="button" id="modalDismissButton">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
