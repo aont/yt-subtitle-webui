@@ -7,6 +7,11 @@ const copyPromptButton = document.getElementById("copyPromptButton");
 const promptTemplateInput = document.getElementById("promptTemplate");
 const fullText = document.getElementById("fullText");
 const logEl = document.getElementById("log");
+const completionModal = document.getElementById("completionModal");
+const modalTitle = document.getElementById("modalTitle");
+const modalMessage = document.getElementById("modalMessage");
+const modalCloseButton = document.getElementById("modalCloseButton");
+const modalDismissButton = document.getElementById("modalDismissButton");
 
 let socket;
 let latestText = "";
@@ -25,6 +30,31 @@ function appendLog(message, level = "info") {
 function setStatus(message) {
   statusEl.textContent = `Status: ${message}`;
   appendLog(`Frontend: ${message}`);
+}
+
+function setModalState(isOpen, tone) {
+  if (!completionModal) {
+    return;
+  }
+  completionModal.classList.remove("success", "error");
+  if (tone) {
+    completionModal.classList.add(tone);
+  }
+  completionModal.classList.toggle("is-visible", isOpen);
+  completionModal.setAttribute("aria-hidden", String(!isOpen));
+}
+
+function showCompletionModal({ title, message, tone }) {
+  if (!completionModal || !modalTitle || !modalMessage) {
+    return;
+  }
+  modalTitle.textContent = title;
+  modalMessage.textContent = message;
+  setModalState(true, tone);
+}
+
+function hideCompletionModal() {
+  setModalState(false);
 }
 
 function defaultSocketUrl() {
@@ -98,6 +128,11 @@ function connectSocket() {
       appendLog(`Backend error: ${data.message}`, "error");
       setStatus("Error");
       downloadButton.disabled = false;
+      showCompletionModal({
+        title: "Download failed",
+        message: data.message || "The backend reported an error while processing the request.",
+        tone: "error",
+      });
       return;
     }
 
@@ -111,6 +146,13 @@ function connectSocket() {
       setStatus(`Completed (language: ${data.language || "unknown"})`);
       downloadButton.disabled = false;
       appendLog("Frontend: Results loaded into the UI.");
+      showCompletionModal({
+        title: "Download complete",
+        message: `Subtitles are ready${
+          data.language ? ` in ${data.language}` : ""
+        }. You can copy the text or the prompt from the buttons above.`,
+        tone: "success",
+      });
     }
   });
 
@@ -244,3 +286,25 @@ if (promptTemplateInput) {
 }
 
 setStatus("Idle");
+
+if (completionModal) {
+  completionModal.addEventListener("click", (event) => {
+    if (event.target === completionModal) {
+      hideCompletionModal();
+    }
+  });
+}
+
+if (modalCloseButton) {
+  modalCloseButton.addEventListener("click", hideCompletionModal);
+}
+
+if (modalDismissButton) {
+  modalDismissButton.addEventListener("click", hideCompletionModal);
+}
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && completionModal?.classList.contains("is-visible")) {
+    hideCompletionModal();
+  }
+});

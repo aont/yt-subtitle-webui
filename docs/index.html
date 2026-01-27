@@ -70,6 +70,29 @@
       </section>
     </main>
 
+    <div
+      class="modal"
+      id="completionModal"
+      role="dialog"
+      aria-modal="true"
+      aria-hidden="true"
+      aria-labelledby="modalTitle"
+      aria-describedby="modalMessage"
+    >
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2 id="modalTitle">Download complete</h2>
+          <button class="modal-close" type="button" id="modalCloseButton" aria-label="Close dialog">
+            ×
+          </button>
+        </div>
+        <p id="modalMessage"></p>
+        <div class="modal-actions">
+          <button type="button" id="modalDismissButton">Close</button>
+        </div>
+      </div>
+    </div>
+
     <script src="app.js"></script>
   </body>
 </html>
