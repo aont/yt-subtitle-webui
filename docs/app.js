@@ -63,10 +63,7 @@ function defaultSocketUrl() {
 }
 
 function defaultBackendAddress() {
-  if (window.location.origin && window.location.origin !== "null") {
-    return window.location.origin;
-  }
-  return `${window.location.protocol}//${window.location.hostname}:${window.location.port || 8080}`;
+  return defaultSocketUrl();
 }
 
 function normalizeSocketUrl(value) {

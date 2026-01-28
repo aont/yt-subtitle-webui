@@ -257,6 +257,21 @@ def frontend_file_response(frontend_dir: Path, file_path: Path) -> web.FileRespo
     return web.FileResponse(resolved)
 
 
+@web.middleware
+async def cors_middleware(
+    request: web.Request, handler: web.RequestHandler
+) -> web.StreamResponse:
+    if request.method == "OPTIONS":
+        response = web.Response(status=200)
+    else:
+        response = await handler(request)
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    return response
+
+
 def create_app(
     *,
     serve_frontend: bool = True,
@@ -264,7 +279,7 @@ def create_app(
     keep_temp: bool = False,
     cookies_path: Optional[Path] = None,
 ) -> web.Application:
-    app = web.Application()
+    app = web.Application(middlewares=[cors_middleware])
     app["keep_temp"] = keep_temp
     app["cookies_path"] = cookies_path
     app.router.add_get("/ws", websocket_handler)
