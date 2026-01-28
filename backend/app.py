@@ -1,7 +1,6 @@
 import argparse
 import asyncio
 import json
-import os
 import tempfile
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -287,8 +286,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--port",
         type=int,
-        default=int(os.environ.get("PORT", "8080")),
-        help="Port to bind the web server (default: 8080 or PORT env var)",
+        default=8080,
+        help="Port to bind the web server (default: 8080)",
     )
     parser.add_argument(
         "--no-serve-frontend",
