@@ -260,7 +260,7 @@ def frontend_file_response(frontend_dir: Path, file_path: Path) -> web.FileRespo
 
 def create_app(
     *,
-    serve_frontend: bool = False,
+    serve_frontend: bool = True,
     frontend_dir: Path = FRONTEND_DIR,
     keep_temp: bool = False,
     cookies_path: Optional[Path] = None,
@@ -291,10 +291,12 @@ def parse_args() -> argparse.Namespace:
         help="Port to bind the web server (default: 8080 or PORT env var)",
     )
     parser.add_argument(
-        "--serve-frontend",
-        action="store_true",
-        help="Serve the frontend static files from the backend server",
+        "--no-serve-frontend",
+        action="store_false",
+        dest="serve_frontend",
+        help="Disable serving frontend static files from the backend server",
     )
+    parser.set_defaults(serve_frontend=True)
     parser.add_argument(
         "--frontend-dir",
         type=Path,
