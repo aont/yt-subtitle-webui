@@ -16,7 +16,7 @@ const modalDismissButton = document.getElementById("modalDismissButton");
 let socket;
 let latestText = "";
 const defaultPromptTemplate =
-  "Turn the following audio transcription into a blog post. \n---- \n\n";
+  "Turn the following audio transcription into a blog post in English.\n----\n\n{{URL}}\n\n";
 
 function appendLog(message, level = "info") {
   const entry = document.createElement("div");
@@ -172,6 +172,16 @@ function sanitizeWatchId(value) {
   return trimmed;
 }
 
+function buildYouTubeUrl(value) {
+  if (!value) {
+    return "";
+  }
+  if (/^https?:\/\//i.test(value)) {
+    return value;
+  }
+  return `https://www.youtube.com/watch?v=${value}`;
+}
+
 async function copyToClipboard(text, label = "subtitles") {
   if (!text) {
     return;
@@ -247,7 +257,10 @@ copyButton.addEventListener("click", () => copyToClipboard(latestText, "subtitle
 if (copyPromptButton) {
   copyPromptButton.addEventListener("click", () => {
     const template = promptTemplateInput?.value ?? defaultPromptTemplate;
-    const combined = `${template}${latestText}`;
+    const watchId = sanitizeWatchId(watchIdInput.value);
+    const url = buildYouTubeUrl(watchId);
+    const filledTemplate = template.replaceAll("{{URL}}", url);
+    const combined = `${filledTemplate}${latestText}`;
     copyToClipboard(combined, "prompt");
   });
 }
