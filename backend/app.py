@@ -7,7 +7,7 @@ from typing import Any, Dict, Optional
 
 from aiohttp import web
 
-FRONTEND_DIR = Path(__file__).resolve().parents[1] / "docs"
+FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
 
 
 def build_watch_url(watch_id: str) -> str:
@@ -315,7 +315,7 @@ def parse_args() -> argparse.Namespace:
         "--frontend-dir",
         type=Path,
         default=FRONTEND_DIR,
-        help="Directory containing frontend assets (default: ./docs)",
+        help="Directory containing frontend assets (default: ./frontend)",
     )
     parser.add_argument(
         "--keep-temp",

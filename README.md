@@ -12,7 +12,7 @@ A lightweight web UI + backend for fetching YouTube subtitles via `yt-dlp` and e
 ## Repository layout
 
 - `backend/`: Aiohttp-based WebSocket server that orchestrates `yt-dlp` and subtitle parsing.
-- `docs/`: Static frontend (HTML/CSS/JS). The backend serves this directory by default.
+- `frontend/`: Static frontend (HTML/CSS/JS). The backend serves this directory by default.
 
 ## Requirements
 
@@ -27,7 +27,7 @@ pip install -r backend/requirements.txt
 
 ## Running locally
 
-Start the backend (serves the frontend from `docs/` by default):
+Start the backend (serves the frontend from `frontend/` by default):
 
 ```bash
 python backend/app.py --port 8080
@@ -52,7 +52,7 @@ http://localhost:8080
 ```bash
 python backend/app.py \
   --port 8080 \
-  --frontend-dir ./docs \
+  --frontend-dir ./frontend \
   --keep-temp \
   --cookies /path/to/cookies.txt
 ```
