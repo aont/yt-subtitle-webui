@@ -83,11 +83,6 @@ function normalizeSocketUrl(value) {
       url = new URL(`${protocol}//${trimmed}`);
     }
 
-    if (!url.pathname || url.pathname === "/") {
-      url.pathname = "/ws";
-    } else if (!url.pathname.endsWith("/ws")) {
-      url.pathname = `${url.pathname.replace(/\/+$/, "")}/ws`;
-    }
     return url.toString();
   } catch (error) {
     appendLog("Frontend: Invalid backend address provided, using default.", "warn");
