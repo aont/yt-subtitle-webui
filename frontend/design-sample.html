@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>YT Subtitle Downloader - Design Sample</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="design-sample.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="hero">
+        <h1>YT Subtitle Downloader (Design Sample)</h1>
+        <p>
+          JavaScript の挙動を省いた静的デザイン見本です。状態が変わる UI は各状態を個別要素として並べています。
+        </p>
+      </header>
+
+      <section class="card">
+        <h2>1. 入力フォーム</h2>
+        <div class="field">
+          <label>Backend address</label>
+          <input type="text" value="ws://localhost:8080/ws" readonly />
+          <span class="hint">Enter the full websocket URL (ws:// or wss://) including /ws.</span>
+        </div>
+        <div class="field">
+          <label>YouTube Watch ID or URL</label>
+          <input type="text" value="dQw4w9WgXcQ" readonly />
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>2. ボタン状態見本</h2>
+        <div class="state-grid">
+          <div class="state-item">
+            <p class="state-label">Download: Idle</p>
+            <button type="button">Download Subtitles</button>
+          </div>
+          <div class="state-item">
+            <p class="state-label">Download: Loading</p>
+            <button type="button" class="is-loading">Downloading...</button>
+          </div>
+          <div class="state-item">
+            <p class="state-label">Copy All: Disabled</p>
+            <button type="button" disabled>Copy All</button>
+          </div>
+          <div class="state-item">
+            <p class="state-label">Copy All: Enabled</p>
+            <button type="button">Copy All</button>
+          </div>
+          <div class="state-item">
+            <p class="state-label">Copy Prompt: Disabled</p>
+            <button type="button" disabled>Copy Prompt</button>
+          </div>
+          <div class="state-item">
+            <p class="state-label">Copy Prompt: Enabled</p>
+            <button type="button">Copy Prompt</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>3. ステータス表示見本</h2>
+        <div class="state-stack">
+          <p class="status status-idle">Status: Idle</p>
+          <p class="status status-progress">Status: Connecting to backend...</p>
+          <p class="status status-success">Status: Download complete</p>
+          <p class="status status-error">Status: Failed to download subtitles</p>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-title">
+          <h2>4. Full Subtitle Text 状態見本</h2>
+          <div class="button-group">
+            <button type="button">Copy All</button>
+            <button type="button">Copy Prompt</button>
+          </div>
+        </div>
+        <div class="state-grid">
+          <div class="state-item state-wide">
+            <p class="state-label">Empty</p>
+            <textarea readonly rows="6" placeholder="Subtitles will appear here..."></textarea>
+          </div>
+          <div class="state-item state-wide">
+            <p class="state-label">With Content</p>
+            <textarea readonly rows="6">Hello everyone and welcome back to our channel.
+Today we will talk about building small and clear UI prototypes.
+Thanks for watching.</textarea>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>5. ログ表示見本</h2>
+        <div class="log">
+          <div class="log-entry">[10:10:31] Booted application.</div>
+          <div class="log-entry">[10:10:35] Opening websocket connection...</div>
+          <div class="log-entry warn">[10:10:36] Subtitle language fallback: auto-caption.</div>
+          <div class="log-entry">[10:10:38] Parsing subtitle file...</div>
+          <div class="log-entry error">[10:10:41] Error: subtitle file not found.</div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>6. モーダル見本</h2>
+        <div class="state-grid">
+          <div class="state-item state-wide">
+            <p class="state-label">Success Modal</p>
+            <div class="modal-preview success">
+              <div class="modal-card">
+                <div class="modal-header">
+                  <h2>Download complete</h2>
+                  <button class="modal-close" type="button" aria-label="Close dialog">×</button>
+                </div>
+                <p>Subtitles downloaded successfully. You can now copy the full text.</p>
+                <div class="modal-actions">
+                  <button type="button">Close</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="state-item state-wide">
+            <p class="state-label">Error Modal</p>
+            <div class="modal-preview error">
+              <div class="modal-card">
+                <div class="modal-header">
+                  <h2>Download failed</h2>
+                  <button class="modal-close" type="button" aria-label="Close dialog">×</button>
+                </div>
+                <p>Could not fetch subtitles for this video. Please check the URL and try again.</p>
+                <div class="modal-actions">
+                  <button type="button">Close</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

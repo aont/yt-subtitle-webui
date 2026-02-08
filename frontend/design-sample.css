@@ -1,0 +1,66 @@
+.state-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.state-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px;
+  background: #f8fafc;
+}
+
+.state-item.state-wide {
+  grid-column: 1 / -1;
+}
+
+.state-label {
+  margin: 0 0 10px;
+  font-size: 0.86rem;
+  color: #475569;
+  font-weight: 600;
+}
+
+.state-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.status {
+  margin: 0;
+}
+
+.status-idle {
+  color: #111827;
+}
+
+.status-progress {
+  color: #2563eb;
+}
+
+.status-success {
+  color: #16a34a;
+}
+
+.status-error {
+  color: #dc2626;
+}
+
+.is-loading {
+  background: #1d4ed8;
+  opacity: 0.86;
+}
+
+.modal-preview {
+  border-radius: 14px;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.modal-preview .modal-card {
+  position: static;
+  width: 100%;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.15);
+}
