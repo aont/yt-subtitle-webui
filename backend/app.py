@@ -2,6 +2,8 @@ import argparse
 import asyncio
 import json
 import tempfile
+import uuid
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -10,10 +12,21 @@ from aiohttp import web
 FRONTEND_DIR = Path(__file__).resolve().parents[1] / "frontend"
 
 
+@dataclass
+class JobState:
+    watch_id: str
+    events: asyncio.Queue[dict[str, Any]] = field(default_factory=asyncio.Queue)
+    done: asyncio.Event = field(default_factory=asyncio.Event)
+    result: Optional[dict[str, Any]] = None
+    error: Optional[str] = None
+
+
+
 def build_watch_url(watch_id: str) -> str:
     if watch_id.startswith("http://") or watch_id.startswith("https://"):
         return watch_id
     return f"https://www.youtube.com/watch?v={watch_id}"
+
 
 
 def pick_subtitle_language(info: Dict[str, Any]) -> tuple[Optional[str], bool]:
@@ -94,11 +107,13 @@ async def run_yt_dlp_subtitles(
     raise FileNotFoundError(f"Subtitle file not found. Output: {debug}")
 
 
+
 def is_cjk_language(language: Optional[str]) -> bool:
     if not language:
         return False
     lowered = language.lower()
     return lowered.startswith("ja") or lowered.startswith("ko") or lowered.startswith("zh")
+
 
 
 def parse_vtt_text(path: Path, joiner: str) -> str:
@@ -126,6 +141,7 @@ def parse_vtt_text(path: Path, joiner: str) -> str:
     return joiner.join(segment.strip() for segment in cleaned if segment.strip()).strip()
 
 
+
 def parse_json3_text(path: Path, joiner: str) -> str:
     payload = json.loads(path.read_text(encoding="utf-8", errors="ignore"))
     events = payload.get("events", [])
@@ -139,11 +155,13 @@ def parse_json3_text(path: Path, joiner: str) -> str:
     return joiner.join(lines).strip()
 
 
+
 def parse_subtitle_text(path: Path, language: Optional[str]) -> str:
     joiner = "" if is_cjk_language(language) else " "
     if path.suffix == ".json3":
         return parse_json3_text(path, joiner)
     return parse_vtt_text(path, joiner)
+
 
 
 def summarize_text(text: str, size: int = 400) -> Dict[str, str]:
@@ -155,52 +173,31 @@ def summarize_text(text: str, size: int = 400) -> Dict[str, str]:
     }
 
 
-async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
-    ws = web.WebSocketResponse()
-    await ws.prepare(request)
+async def process_download_job(app: web.Application, reservation_id: str) -> None:
+    jobs: dict[str, JobState] = app["jobs"]
+    job = jobs.get(reservation_id)
+    if job is None:
+        return
+
+    async def push_event(event_type: str, payload: dict[str, Any]) -> None:
+        await job.events.put({"event": event_type, "data": payload})
 
     async def send_log(message: str) -> None:
-        await ws.send_json({"type": "log", "message": message})
+        await push_event("log", {"message": message})
 
-    await send_log("WebSocket connected. Ready to download subtitles.")
-
-    async for msg in ws:
-        if msg.type != web.WSMsgType.TEXT:
-            continue
-        try:
-            payload = json.loads(msg.data)
-        except json.JSONDecodeError:
-            await send_log("Received invalid JSON payload.")
-            continue
-
-        if payload.get("action") != "download":
-            await send_log("Unknown action received.")
-            continue
-
-        watch_id = payload.get("watch_id", "").strip()
-        if not watch_id:
-            await ws.send_json({"type": "error", "message": "Watch ID is required."})
-            continue
-
-        url = build_watch_url(watch_id)
+    try:
+        url = build_watch_url(job.watch_id)
         await send_log(f"Fetching metadata for {url}...")
-        cookies_path = request.app.get("cookies_path")
-        try:
-            info = await run_yt_dlp_json(url, cookies_path)
-        except Exception as exc:  # noqa: BLE001
-            await ws.send_json({"type": "error", "message": str(exc)})
-            continue
+        cookies_path = app.get("cookies_path")
+        info = await run_yt_dlp_json(url, cookies_path)
 
         language, use_auto = pick_subtitle_language(info)
         if not language:
-            await ws.send_json({"type": "error", "message": "No subtitles available for this video."})
-            continue
+            raise RuntimeError("No subtitles available for this video.")
 
-        await send_log(
-            f"Selected language '{language}' ({'auto' if use_auto else 'manual'} captions)."
-        )
+        await send_log(f"Selected language '{language}' ({'auto' if use_auto else 'manual'} captions).")
 
-        keep_temp = bool(request.app.get("keep_temp"))
+        keep_temp = bool(app.get("keep_temp"))
         temp_dir_obj: Optional[tempfile.TemporaryDirectory[str]] = None
         if keep_temp:
             out_dir = Path(tempfile.mkdtemp(prefix="yt_subtitle_"))
@@ -208,19 +205,16 @@ async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
         else:
             temp_dir_obj = tempfile.TemporaryDirectory()
             out_dir = Path(temp_dir_obj.name)
+
         try:
             await send_log("Downloading subtitles with yt-dlp...")
-            try:
-                subtitle_path = await run_yt_dlp_subtitles(
-                    url,
-                    language,
-                    use_auto,
-                    out_dir,
-                    cookies_path,
-                )
-            except Exception as exc:  # noqa: BLE001
-                await ws.send_json({"type": "error", "message": str(exc)})
-                continue
+            subtitle_path = await run_yt_dlp_subtitles(
+                url,
+                language,
+                use_auto,
+                out_dir,
+                cookies_path,
+            )
 
             await send_log("Parsing subtitle text...")
             text = parse_subtitle_text(subtitle_path, language)
@@ -229,21 +223,85 @@ async def websocket_handler(request: web.Request) -> web.WebSocketResponse:
                 temp_dir_obj.cleanup()
 
         if not text:
-            await ws.send_json({"type": "error", "message": "Subtitle text was empty."})
-            continue
+            raise RuntimeError("Subtitle text was empty.")
 
         summary = summarize_text(text)
+        job.result = {
+            "type": "result",
+            "language": language,
+            "summary": summary,
+            "text": text,
+        }
         await send_log("Subtitle processing completed.")
-        await ws.send_json(
-            {
-                "type": "result",
-                "language": language,
-                "summary": summary,
-                "text": text,
-            }
-        )
+        await push_event("completed", {"reservation_id": reservation_id})
+    except Exception as exc:  # noqa: BLE001
+        job.error = str(exc)
+        await push_event("error", {"message": job.error})
+    finally:
+        job.done.set()
 
-    return ws
+
+async def reservation_handler(request: web.Request) -> web.Response:
+    try:
+        payload = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"message": "Invalid JSON payload."}, status=400)
+
+    watch_id = str(payload.get("watch_id", "")).strip()
+    if not watch_id:
+        return web.json_response({"message": "Watch ID is required."}, status=400)
+
+    reservation_id = uuid.uuid4().hex
+    jobs: dict[str, JobState] = request.app["jobs"]
+    jobs[reservation_id] = JobState(watch_id=watch_id)
+    asyncio.create_task(process_download_job(request.app, reservation_id))
+
+    return web.json_response({"reservation_id": reservation_id})
+
+
+async def events_handler(request: web.Request) -> web.StreamResponse:
+    reservation_id = request.match_info.get("reservation_id", "")
+    jobs: dict[str, JobState] = request.app["jobs"]
+    job = jobs.get(reservation_id)
+    if job is None:
+        raise web.HTTPNotFound(text="reservation not found")
+
+    response = web.StreamResponse(
+        status=200,
+        headers={
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        },
+    )
+    await response.prepare(request)
+
+    while True:
+        if job.done.is_set() and job.events.empty():
+            break
+        event = await job.events.get()
+        event_type = event["event"]
+        data = json.dumps(event["data"], ensure_ascii=False)
+        await response.write(f"event: {event_type}\ndata: {data}\n\n".encode("utf-8"))
+
+    await response.write_eof()
+    return response
+
+
+async def result_handler(request: web.Request) -> web.Response:
+    reservation_id = request.match_info.get("reservation_id", "")
+    jobs: dict[str, JobState] = request.app["jobs"]
+    job = jobs.get(reservation_id)
+    if job is None:
+        raise web.HTTPNotFound(text="reservation not found")
+
+    if not job.done.is_set():
+        return web.json_response({"status": "processing"}, status=202)
+    if job.error:
+        return web.json_response({"type": "error", "message": job.error}, status=500)
+    if job.result is None:
+        return web.json_response({"type": "error", "message": "Result not available."}, status=500)
+    return web.json_response(job.result)
 
 
 def frontend_file_response(frontend_dir: Path, file_path: Path) -> web.FileResponse:
@@ -272,6 +330,7 @@ async def cors_middleware(
     return response
 
 
+
 def create_app(
     *,
     serve_frontend: bool = True,
@@ -282,7 +341,12 @@ def create_app(
     app = web.Application(middlewares=[cors_middleware])
     app["keep_temp"] = keep_temp
     app["cookies_path"] = cookies_path
-    app.router.add_get("/ws", websocket_handler)
+    app["jobs"] = {}
+
+    app.router.add_post("/reservation", reservation_handler)
+    app.router.add_get("/events/{reservation_id}", events_handler)
+    app.router.add_get("/result/{reservation_id}", result_handler)
+
     if serve_frontend:
         app["frontend_dir"] = frontend_dir
 

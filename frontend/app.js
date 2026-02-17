@@ -13,7 +13,6 @@ const modalMessage = document.getElementById("modalMessage");
 const modalCloseButton = document.getElementById("modalCloseButton");
 const modalDismissButton = document.getElementById("modalDismissButton");
 
-let socket;
 let latestText = "";
 const defaultPromptTemplate =
   "Turn the following audio transcription into a blog post in English.\n----\n\n{{URL}}\n\n";
@@ -57,106 +56,120 @@ function hideCompletionModal() {
   setModalState(false);
 }
 
-function defaultSocketUrl() {
-  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-  return `${protocol}://${window.location.hostname}:${window.location.port || 8080}/ws`;
-}
-
 function defaultBackendAddress() {
-  return defaultSocketUrl();
+  return window.location.origin;
 }
 
-function normalizeSocketUrl(value) {
+function normalizeBackendBaseUrl(value) {
   const trimmed = value.trim();
   if (!trimmed) {
-    return defaultSocketUrl();
+    return defaultBackendAddress();
   }
+
   try {
-    let url;
-    if (/^wss?:\/\//i.test(trimmed)) {
-      url = new URL(trimmed);
-    } else if (/^https?:\/\//i.test(trimmed)) {
-      url = new URL(trimmed);
-      url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-    } else {
-      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      url = new URL(`${protocol}//${trimmed}`);
+    if (/^https?:\/\//i.test(trimmed)) {
+      const url = new URL(trimmed);
+      return url.toString().replace(/\/$/, "");
     }
 
-    return url.toString();
+    const protocol = window.location.protocol === "https:" ? "https:" : "http:";
+    const url = new URL(`${protocol}//${trimmed}`);
+    return url.toString().replace(/\/$/, "");
   } catch (error) {
     appendLog("Frontend: Invalid backend address provided, using default.", "warn");
-    return defaultSocketUrl();
+    return defaultBackendAddress();
   }
 }
 
-function connectSocket() {
-  if (socket && socket.readyState === WebSocket.OPEN) {
-    return socket;
+function buildEndpointUrl(baseUrl, endpoint) {
+  const cleaned = endpoint.replace(/^\/+/, "");
+  return `${baseUrl}/${cleaned}`;
+}
+
+async function createReservation(baseUrl, watchId) {
+  const response = await fetch(buildEndpointUrl(baseUrl, "reservation"), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ watch_id: watchId }),
+  });
+
+  let payload = {};
+  try {
+    payload = await response.json();
+  } catch (error) {
+    payload = {};
   }
 
-  const socketUrl = normalizeSocketUrl(backendAddressInput?.value || "");
-  socket = new WebSocket(socketUrl);
+  if (!response.ok) {
+    throw new Error(payload.message || "Failed to create reservation.");
+  }
 
-  socket.addEventListener("open", () => {
-    appendLog("Frontend: WebSocket connection established.");
-  });
+  if (!payload.reservation_id) {
+    throw new Error("Backend did not return a reservation ID.");
+  }
 
-  socket.addEventListener("message", (event) => {
-    let data;
-    try {
-      data = JSON.parse(event.data);
-    } catch (error) {
-      appendLog("Frontend: Received non-JSON message.", "error");
-      return;
-    }
+  return payload.reservation_id;
+}
 
-    if (data.type === "log") {
-      appendLog(`Backend: ${data.message}`);
-      return;
-    }
+function waitForEvents(baseUrl, reservationId) {
+  return new Promise((resolve, reject) => {
+    const eventsUrl = buildEndpointUrl(baseUrl, `events/${encodeURIComponent(reservationId)}`);
+    const eventSource = new EventSource(eventsUrl);
 
-    if (data.type === "error") {
-      appendLog(`Backend error: ${data.message}`, "error");
-      setStatus("Error");
-      downloadButton.disabled = false;
-      showCompletionModal({
-        title: "Download failed",
-        message: data.message || "The backend reported an error while processing the request.",
-        tone: "error",
-      });
-      return;
-    }
+    eventSource.addEventListener("open", () => {
+      appendLog("Frontend: Event stream connected.");
+    });
 
-    if (data.type === "result") {
-      latestText = data.text || "";
-      fullText.value = latestText;
-      copyButton.disabled = !latestText;
-      if (copyPromptButton) {
-        copyPromptButton.disabled = !latestText;
+    eventSource.addEventListener("log", (event) => {
+      let data;
+      try {
+        data = JSON.parse(event.data);
+      } catch (error) {
+        appendLog("Frontend: Received invalid log event payload.", "warn");
+        return;
       }
-      setStatus(`Completed (language: ${data.language || "unknown"})`);
-      downloadButton.disabled = false;
-      appendLog("Frontend: Results loaded into the UI.");
-      showCompletionModal({
-        title: "Download complete",
-        message: `Subtitles are ready${
-          data.language ? ` in ${data.language}` : ""
-        }. You can copy the text or the prompt from the buttons above.`,
-        tone: "success",
-      });
-    }
-  });
+      appendLog(`Backend: ${data.message || ""}`);
+    });
 
-  socket.addEventListener("close", () => {
-    appendLog("Frontend: WebSocket connection closed.", "warn");
-  });
+    eventSource.addEventListener("error", (event) => {
+      let data;
+      try {
+        data = JSON.parse(event.data);
+      } catch (error) {
+        data = {};
+      }
+      eventSource.close();
+      reject(new Error(data.message || "Stream error from backend."));
+    });
 
-  socket.addEventListener("error", () => {
-    appendLog("Frontend: WebSocket error.", "error");
-  });
+    eventSource.addEventListener("completed", () => {
+      eventSource.close();
+      resolve();
+    });
 
-  return socket;
+    eventSource.onerror = () => {
+      eventSource.close();
+      reject(new Error("Failed to connect to event stream."));
+    };
+  });
+}
+
+async function fetchResult(baseUrl, reservationId) {
+  const response = await fetch(buildEndpointUrl(baseUrl, `result/${encodeURIComponent(reservationId)}`));
+  let payload = {};
+  try {
+    payload = await response.json();
+  } catch (error) {
+    payload = {};
+  }
+
+  if (!response.ok) {
+    throw new Error(payload.message || "Failed to fetch result.");
+  }
+
+  return payload;
 }
 
 function sanitizeWatchId(value) {
@@ -206,7 +219,7 @@ async function copyToClipboard(text, label = "subtitles") {
   }
 }
 
-downloadButton.addEventListener("click", () => {
+downloadButton.addEventListener("click", async () => {
   const watchId = sanitizeWatchId(watchIdInput.value);
   if (!watchId) {
     setStatus("Please enter a watch ID or URL");
@@ -221,30 +234,44 @@ downloadButton.addEventListener("click", () => {
   }
   downloadButton.disabled = true;
 
-  setStatus("Requesting subtitles...");
-  const ws = connectSocket();
-  ws.addEventListener(
-    "open",
-    () => {
-      ws.send(
-        JSON.stringify({
-          action: "download",
-          watch_id: watchId,
-        })
-      );
-      appendLog(`Frontend: Sent download request for ${watchId}.`);
-    },
-    { once: true }
-  );
+  const baseUrl = normalizeBackendBaseUrl(backendAddressInput?.value || "");
 
-  if (ws.readyState === WebSocket.OPEN) {
-    ws.send(
-      JSON.stringify({
-        action: "download",
-        watch_id: watchId,
-      })
-    );
-    appendLog(`Frontend: Sent download request for ${watchId}.`);
+  try {
+    setStatus("Creating reservation...");
+    const reservationId = await createReservation(baseUrl, watchId);
+    appendLog(`Frontend: Reservation created (${reservationId}).`);
+
+    setStatus("Waiting for backend events...");
+    await waitForEvents(baseUrl, reservationId);
+
+    setStatus("Fetching final subtitle result...");
+    const data = await fetchResult(baseUrl, reservationId);
+
+    latestText = data.text || "";
+    fullText.value = latestText;
+    copyButton.disabled = !latestText;
+    if (copyPromptButton) {
+      copyPromptButton.disabled = !latestText;
+    }
+    setStatus(`Completed (language: ${data.language || "unknown"})`);
+    appendLog("Frontend: Results loaded into the UI.");
+    showCompletionModal({
+      title: "Download complete",
+      message: `Subtitles are ready${
+        data.language ? ` in ${data.language}` : ""
+      }. You can copy the text or the prompt from the buttons above.`,
+      tone: "success",
+    });
+  } catch (error) {
+    appendLog(`Backend error: ${error.message}`, "error");
+    setStatus("Error");
+    showCompletionModal({
+      title: "Download failed",
+      message: error.message || "The backend reported an error while processing the request.",
+      tone: "error",
+    });
+  } finally {
+    downloadButton.disabled = false;
   }
 });
 

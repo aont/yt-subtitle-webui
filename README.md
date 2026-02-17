@@ -1,6 +1,6 @@
 # YT Subtitle Web UI
 
-A lightweight web UI + backend for fetching YouTube subtitles via `yt-dlp` and exporting them as clean, plain text. The backend exposes a WebSocket endpoint that downloads subtitles, normalizes them, and returns the full text along with a short summary preview.
+A lightweight web UI + backend for fetching YouTube subtitles via `yt-dlp` and exporting them as clean, plain text. The backend now uses separate HTTP endpoints (POST/GET/SSE) to reserve work, stream processing logs, and fetch final subtitle results.
 
 ## Features
 
@@ -8,10 +8,11 @@ A lightweight web UI + backend for fetching YouTube subtitles via `yt-dlp` and e
 - Automatically selects an available subtitle language (manual preferred, auto captions as fallback).
 - Normalizes subtitle output (JSON3 or VTT) into readable plain text.
 - Frontend includes copy actions for full text or a prompt template.
+- Event stream (`text/event-stream`) for real-time backend logs.
 
 ## Repository layout
 
-- `backend/`: Aiohttp-based WebSocket server that orchestrates `yt-dlp` and subtitle parsing.
+- `backend/`: Aiohttp-based server that orchestrates `yt-dlp`, subtitle parsing, and SSE progress events.
 - `frontend/`: Static frontend (HTML/CSS/JS). The backend serves this directory by default.
 
 ## Requirements
@@ -39,9 +40,28 @@ Then open the app at:
 http://localhost:8080
 ```
 
+## API overview
+
+All paths are at root-level (no `/api` prefix):
+
+- `POST /reservation`
+  - body: `{ "watch_id": "..." }`
+  - response: `{ "reservation_id": "..." }`
+- `GET /events/{reservation_id}`
+  - `text/event-stream`
+  - emits `log`, `error`, `completed` events
+- `GET /result/{reservation_id}`
+  - returns final subtitle payload after processing
+
+If frontend backend URL is set to `https://host/path`, it will call:
+
+- `https://host/path/reservation`
+- `https://host/path/events/{reservation_id}`
+- `https://host/path/result/{reservation_id}`
+
 ## Usage
 
-1. Enter the backend WebSocket URL (defaults to `ws://localhost:8080/ws`).
+1. Enter the backend base URL (defaults to current origin, e.g. `http://localhost:8080`).
 2. Paste a YouTube watch ID (e.g. `dQw4w9WgXcQ`) or a full YouTube URL.
 3. Click **Download Subtitles** to fetch and display the text.
 
