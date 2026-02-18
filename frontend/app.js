@@ -288,7 +288,7 @@ if (copyPromptButton) {
 }
 
 if (backendAddressInput) {
-  const saved = window.localStorage.getItem("backendAddress");
+  const saved = window.localStorage.getItem("ytSubtitleWebui.backendAddress");
   if (saved) {
     backendAddressInput.value = saved;
   } else {
@@ -297,23 +297,23 @@ if (backendAddressInput) {
   backendAddressInput.addEventListener("change", () => {
     const value = backendAddressInput.value.trim();
     if (value) {
-      window.localStorage.setItem("backendAddress", value);
+      window.localStorage.setItem("ytSubtitleWebui.backendAddress", value);
     } else {
-      window.localStorage.removeItem("backendAddress");
+      window.localStorage.removeItem("ytSubtitleWebui.backendAddress");
     }
   });
 }
 
 if (promptTemplateInput) {
-  const savedTemplate = window.localStorage.getItem("promptTemplate");
+  const savedTemplate = window.localStorage.getItem("ytSubtitleWebui.promptTemplate");
   if (savedTemplate) {
     promptTemplateInput.value = savedTemplate;
   } else {
     promptTemplateInput.value = defaultPromptTemplate;
-    window.localStorage.setItem("promptTemplate", defaultPromptTemplate);
+    window.localStorage.setItem("ytSubtitleWebui.promptTemplate", defaultPromptTemplate);
   }
   promptTemplateInput.addEventListener("input", () => {
-    window.localStorage.setItem("promptTemplate", promptTemplateInput.value);
+    window.localStorage.setItem("ytSubtitleWebui.promptTemplate", promptTemplateInput.value);
   });
 }
 
